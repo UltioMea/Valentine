@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoHub - Cryptocurrency Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #3a6df0;      /* Main brand blue */
+            --bg-color: #f8f9fa;           /* Page background */
+            --text-color: #212529;         /* Primary text */
+            --card-bg: #ffffff;            /* Card backgrounds */
+            --border-color: #dee2e6;       /* Borders */
+            --hover-color: #e9ecef;        /* Hover states */
+            --header-bg: #3a6df0;          /* Navbar background */
+            --header-text: #ffffff;         /* Navbar text */
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-bottom: 20px;
+            min-height: 100vh;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-color: var(--border-color);
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+
+        .navbar {
+            background-color: var(--header-bg) !important;
+            color: var(--header-text);
+        }
+
+        .navbar-brand, .nav-link {
+            color: var(--header-text) !important;
+        }
+
+        .footer {
+            background-color: var(--card-bg) !important;
+            border-color: var(--border-color);
+        }
+
+        .form-control, .form-select {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        .crypto-item {
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        .crypto-item:hover {
+            background-color: var(--hover-color);
+            cursor: pointer;
+        }
+
+        .positive-change {
+            color: #28a745;
+        }
+
+        .negative-change {
+            color: #dc3545;
+        }
+
+        .watchlist-btn.active {
+            color: #ffc107;
+        }
+
+        /* Modal styles */
+        .chart-modal .modal-content {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+        }
+
+        .chart-modal .modal-header {
+            border-bottom-color: var(--border-color);
+        }
+
+        .chart-modal .modal-footer {
+            border-top-color: var(--border-color);
+        }
+
+        /* Notification toast */
+        .notification-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+            min-width: 300px;
+        }
+
+        /* Watchlist dropdown */
+        .watchlist-dropdown-menu {
+            max-height: 300px;
+            overflow-y: auto;
+            width: 300px;
+        }
+
+        .watchlist-item {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .watchlist-item:last-child {
+            border-bottom: none;
+        }
+        
+        /* API status indicator */
+        .api-status {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .api-status.live {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .api-status.demo {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        /* Responsive optimizations */
+        .crypto-item .crypto-image {  
+            width: 32px;
+            height: 32px;
+            flex-shrink: 0;
+        }
+
+        .crypto-item .crypto-info {
+            min-width: 0; /* Allow text truncation */
+        }
+
+        .crypto-item .crypto-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .crypto-item .crypto-price {
+            flex-shrink: 0;
+            text-align: right;
+        }
+
+        .crypto-item .crypto-actions {
+            flex-shrink: 0;
+        }
+        
+        /* Mobile-first responsive utilities */
+        @media (max-width: 576px) {
+            .crypto-item .crypto-actions .btn span {
+                display: none;
+            }
+            
+            .crypto-item .crypto-market-cap {
+                display: none;
+            }
+            
+            .chart-modal .modal-dialog {
+                margin: 0.5rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .crypto-item .crypto-volume {
+                display: none;
+            }
+        }
+
+        /* Loading animation */
+        .loading-spinner {
+            display: inline-block;
+            width: 2rem;
+            height: 2rem;
+            border: 0.25em solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spinner-border 0.75s linear infinite;
+        }
+
+        @keyframes spinner-border {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- API Status Indicator -->
+    <div id="api-status" class="api-status demo">
+        <i class="bi bi-info-circle"></i> Using demo data
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-3">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-currency-bitcoin"></i> CryptoHub
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <!-- Empty for future menu items -->
+                    </li>
+                </ul>
+                <div class="d-flex">
+                    <!-- Watchlist Dropdown -->
+                    <div class="dropdown me-2">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="watchlistDropdown" data-bs-toggle="dropdown">
+                            <i class="bi bi-star-fill"></i> 
+                            <span class="d-none d-sm-inline">Watchlist</span>
+                            <span class="badge bg-warning text-dark ms-1" id="watchlist-count">0</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end watchlist-dropdown-menu" aria-labelledby="watchlistDropdown">
+                            <li id="watchlist-empty" class="px-3 py-2 text-muted">Your watchlist is empty</li>
+                            <div id="watchlist-items"></div>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Notification Toast -->
+    <div class="notification-toast toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="true" data-bs-delay="3000">
+        <div class="toast-header">
+            <i class="bi bi-info-circle text-primary me-2"></i>
+            <strong class="me-auto">Notification</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toast-message"></div>
+    </div>
+
+    <div class="container-fluid px-3">
+        <!-- Search and Controls -->
+        <div class="row mb-3 g-2">
+            <div class="col-12 col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" id="search-input" class="form-control" placeholder="Search cryptocurrencies...">
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <select id="currency-select" class="form-select">
+                    <option value="usd">USD</option>
+                    <option value="eur">EUR</option>
+                    <option value="jpy">JPY</option>
+                    <option value="gbp">GBP</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <select id="sort-select" class="form-select">
+                    <option value="market_cap_desc">Market Cap Desc</option>
+                    <option value="market_cap_asc">Market Cap Asc</option>
+                    <option value="volume_desc">Volume Desc</option>
+                    <option value="volume_asc">Volume Asc</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="row">
+            <!-- Crypto List -->
+            <div class="col-12">
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                        <h5 class="mb-0">Cryptocurrencies</h5>
+                        <span id="last-updated" class="text-muted small"></span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="crypto-list" class="list-group list-group-flush">
+                            <!-- Crypto items will be loaded here -->
+                            <div class="text-center py-5">
+                                <div class="loading-spinner text-primary"></div>
+                                <p class="mt-2">Loading cryptocurrencies...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Modal -->
+    <div class="modal fade chart-modal" id="chartModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="chartModalTitle">Price Chart</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
+                        <div id="selected-crypto-info" class="mb-2 mb-md-0"></div>
+                        <select id="chart-timeframe-select" class="form-select form-select-sm w-auto">
+                            <option value="1">24 Hours</option>
+                            <option value="7">7 Days</option>
+                            <option value="30" selected>30 Days</option>
+                            <option value="90">90 Days</option>
+                            <option value="365">1 Year</option>
+                        </select>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="price-chart" height="300"></canvas>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="retry-api-btn">
+                        <i class="bi bi-arrow-clockwise"></i> Retry API Connection
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer mt-4 py-3">
+        <div class="container-fluid px-3">
+            <div class="text-center text-muted">
+                <p class="mb-0 small">CryptoHub &copy; 2025 | Data provided by <a href="https://www.coingecko.com/" target="_blank">CoinGecko API</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // State management
+        const state = {
+            currency: localStorage.getItem('currency') || 'usd',
+            sort: localStorage.getItem('sort') || 'market_cap_desc',
+            cryptos: [],
+            filteredCryptos: [],
+            watchlist: JSON.parse(localStorage.getItem('watchlist')) || [],
+            currentChartCrypto: null,
+            usingLiveData: false
+        };
+
+        // DOM Elements
+        const searchInput = document.getElementById('search-input');
+        const currencySelect = document.getElementById('currency-select');
+        const sortSelect = document.getElementById('sort-select');
+        const cryptoList = document.getElementById('crypto-list');
+        const lastUpdated = document.getElementById('last-updated');
+        const watchlistCount = document.getElementById('watchlist-count');
+        const watchlistItems = document.getElementById('watchlist-items');
+        const watchlistEmpty = document.getElementById('watchlist-empty');
+        const chartTimeframeSelect = document.getElementById('chart-timeframe-select');
+        const retryApiBtn = document.getElementById('retry-api-btn');
+        const chartModal = new bootstrap.Modal(document.getElementById('chartModal'));
+        const notificationToast = new bootstrap.Toast(document.querySelector('.notification-toast'));
+        const toastMessage = document.getElementById('toast-message');
+        const selectedCryptoInfo = document.getElementById('selected-crypto-info');
+
+        // Chart initialization
+        const priceChart = new Chart(
+            document.getElementById('price-chart'),
+            {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Price',
+                        data: [],
+                        borderColor: '#3a6df0',
+                        tension: 0.1,
+                        fill: true,
+                        backgroundColor: 'rgba(58, 109, 240, 0.1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Price History',
+                            color: '#212529'
+                        },
+                        legend: {
+                            labels: {
+                                color: '#212529'
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${formatCurrency(context.raw, state.currency)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: '#6c757d',
+                                maxRotation: 45,
+                                minRotation: 45
+                            },
+                            grid: {
+                                color: '#dee2e6'
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                color: '#6c757d',
+                                callback: function(value) {
+                                    return formatCurrency(value, state.currency);
+                                }
+                            },
+                            grid: {
+                                color: '#dee2e6'
+                            }
+                        }
+                    }
+                }
+            }
+        );
+
+        // Initialize application
+        function initApp() {
+            // Set currency and sort from localStorage
+            currencySelect.value = state.currency;
+            sortSelect.value = state.sort;
+            
+            // Try to load cryptocurrency data from API first
+            fetchCryptoData();
+            
+            // Update watchlist display
+            updateWatchlistDisplay();
+            
+            // Set up event listeners
+            setupEventListeners();
+            
+            // Update API status indicator
+            updateApiStatusIndicator();
+        }
+
+        // Set up event listeners
+        function setupEventListeners() {
+            // Search functionality with debouncing
+            let searchTimeout;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    filterCryptos(this.value);
+                }, 300);
+            });
+
+            // Currency change
+            currencySelect.addEventListener('change', function() {
+                state.currency = this.value;
+                localStorage.setItem('currency', state.currency);
+                fetchCryptoData();
+            });
+
+            // Sort change
+            sortSelect.addEventListener('change', function() {
+                state.sort = this.value;
+                localStorage.setItem('sort', state.sort);
+                sortCryptos();
+                renderCryptoList();
+            });
+
+            // Chart timeframe change
+            chartTimeframeSelect.addEventListener('change', function() {
+                if (state.currentChartCrypto) {
+                    fetchChartData(state.currentChartCrypto.id);
+                }
+            });
+
+            // Retry API connection
+            retryApiBtn.addEventListener('click', retryApiConnection);
+
+            // Window resize event to adjust chart
+            window.addEventListener('resize', function() {
+                if (priceChart) {
+                    priceChart.resize();
+                }
+            });
+        }
+
+        // Format currency based on selected currency
+        function formatCurrency(value, currency) {
+            if (value === null || value === undefined) return 'N/A';
+            
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: currency.toUpperCase(),
+                minimumFractionDigits: value < 1 ? 4 : 2,
+                maximumFractionDigits: value < 1 ? 6 : 2
+            }).format(value);
+        }
+
+        // Update API status indicator
+        function updateApiStatusIndicator() {
+            const statusElement = document.getElementById('api-status');
+            if (state.usingLiveData) {
+                statusElement.className = 'api-status live';
+                statusElement.innerHTML = '<i class="bi bi-check-circle"></i> Live data from API';
+            } else {
+                statusElement.className = 'api-status demo';
+                statusElement.innerHTML = '<i class="bi bi-info-circle"></i> Using demo data';
+            }
+        }
+
+        // Fetch cryptocurrency data from CoinGecko API
+        async function fetchCryptoData() {
+            try {
+                // Show loading state
+                cryptoList.innerHTML = `
+                    <div class="text-center py-5">
+                        <div class="loading-spinner text-primary"></div>
+                        <p class="mt-2">Loading cryptocurrencies...</p>
+                    </div>
+                `;
+
+                const orderBy = state.sort.split('_')[0];
+                const orderDirection = state.sort.split('_')[2];
+                
+                // Try to fetch from CoinGecko API directly
+                const apiUrl = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=${state.currency}&order=${orderBy}_${orderDirection}&per_page=50&page=1&sparkline=false&price_change_percentage=24h`;
+                
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error('API request failed');
+                }
+                
+                const data = await response.json();
+                
+                state.cryptos = data;
+                state.filteredCryptos = data;
+                state.usingLiveData = true;
+                
+                renderCryptoList();
+                updateLastUpdated();
+                showNotification('Connected to live API data', 'success');
+                
+            } catch (error) {
+                console.error('Error fetching crypto data from API:', error);
+                // If API fails, use demo data
+                useDemoData();
+            }
+            
+            // Update API status indicator
+            updateApiStatusIndicator();
+        }
+
+        // Use demo data when API is unavailable
+        function useDemoData() {
+            const demoData = [
+                {
+                    id: 'bitcoin',
+                    name: 'Bitcoin',
+                    symbol: 'btc',
+                    image: 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png?1547033579',
+                    current_price: 51623,
+                    market_cap: 1012345678901,
+                    price_change_percentage_24h: 2.34,
+                    total_volume: 28456789012
+                },
+                {
+                    id: 'ethereum',
+                    name: 'Ethereum',
+                    symbol: 'eth',
+                    image: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png?1595348880',
+                    current_price: 3421.67,
+                    market_cap: 402345678901,
+                    price_change_percentage_24h: -1.25,
+                    total_volume: 15678901234
+                },
+                {
+                    id: 'binancecoin',
+                    name: 'Binance Coin',
+                    symbol: 'bnb',
+                    image: 'https://assets.coingecko.com/coins/images/825/small/bnb-icon2_2x.png?1644979850',
+                    current_price: 523.45,
+                    market_cap: 82345678901,
+                    price_change_percentage_24h: 0.78,
+                    total_volume: 2345678901
+                },
+                {
+                    id: 'ripple',
+                    name: 'XRP',
+                    symbol: 'xrp',
+                    image: 'https://assets.coingecko.com/coins/images/44/small/xrp-symbol-white-128.png?1605778731',
+                    current_price: 0.5678,
+                    market_cap: 29345678901,
+                    price_change_percentage_24h: 3.45,
+                    total_volume: 1456789012
+                },
+                {
+                    id: 'cardano',
+                    name: 'Cardano',
+                    symbol: 'ada',
+                    image: 'https://assets.coingecko.com/coins/images/975/small/cardano.png?1547034860',
+                    current_price: 1.23,
+                    market_cap: 39456789012,
+                    price_change_percentage_24h: -0.56,
+                    total_volume: 856789012
+                },
+                {
+                    id: 'solana',
+                    name: 'Solana',
+                    symbol: 'sol',
+                    image: 'https://assets.coingecko.com/coins/images/4128/small/solana.png?1640133422',
+                    current_price: 102.45,
+                    market_cap: 44234567890,
+                    price_change_percentage_24h: 5.67,
+                    total_volume: 3456789012
+                },
+                {
+                    id: 'dogecoin',
+                    name: 'Dogecoin',
+                    symbol: 'doge',
+                    image: 'https://assets.coingecko.com/coins/images/5/small/dogecoin.png?1547792256',
+                    current_price: 0.1234,
+                    market_cap: 17234567890,
+                    price_change_percentage_24h: -2.34,
+                    total_volume: 956789012
+                }
+            ];
+            
+            state.cryptos = demoData;
+            state.filteredCryptos = demoData;
+            state.usingLiveData = false;
+            
+            renderCryptoList();
+            updateLastUpdated();
+            
+            // Show notification about demo data
+            showNotification('Using demo data. API may be temporarily unavailable.', 'info');
+            
+            // Update API status indicator
+            updateApiStatusIndicator();
+        }
+
+        // Retry API connection
+        function retryApiConnection() {
+            showNotification('Attempting to connect to API...', 'info');
+            fetchCryptoData();
+        }
+
+        // Generate demo chart data
+        function generateDemoChartData(days) {
+            const data = [];
+            const now = new Date();
+            let price = state.currentChartCrypto.current_price;
+            
+            for (let i = days; i >= 0; i--) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - i);
+                
+                // Random price fluctuation
+                const fluctuation = (Math.random() - 0.5) * 0.1;
+                price = price * (1 + fluctuation);
+                
+                data.push({
+                    time: date.getTime(),
+                    price: price
+                });
+            }
+            
+            return data;
+        }
+
+        // Sort cryptocurrencies
+        function sortCryptos() {
+            const orderBy = state.sort.split('_')[0];
+            const orderDirection = state.sort.split('_')[2];
+            
+            state.filteredCryptos.sort((a, b) => {
+                if (orderDirection === 'desc') {
+                    return b[orderBy] - a[orderBy];
+                } else {
+                    return a[orderBy] - b[orderBy];
+                }
+            });
+        }
+
+        // Filter cryptocurrencies based on search input
+        function filterCryptos(searchTerm) {
+            if (!searchTerm) {
+                state.filteredCryptos = [...state.cryptos];
+            } else {
+                const term = searchTerm.toLowerCase();
+                state.filteredCryptos = state.cryptos.filter(crypto => 
+                    crypto.name.toLowerCase().includes(term) || 
+                    crypto.symbol.toLowerCase().includes(term)
+                );
+            }
+            
+            sortCryptos();
+            renderCryptoList();
+        }
+
+        // Render cryptocurrency list
+        function renderCryptoList() {
+            if (state.filteredCryptos.length === 0) {
+                cryptoList.innerHTML = '<div class="text-center py-5">No cryptocurrencies found</div>';
+                return;
+            }
+            
+            cryptoList.innerHTML = state.filteredCryptos.map(crypto => ` 
+                <div class="list-group-item crypto-item" data-id="${crypto.id}">
+                    <div class="d-flex align-items-center">
+                        <img src="${crypto.image}" alt="${crypto.name}" class="rounded crypto-image">
+                        <div class="ms-2 ms-sm-3 flex-grow-1 crypto-info">
+                            <h6 class="mb-0 crypto-name">${crypto.name} <span class="text-muted">${crypto.symbol.toUpperCase()}</span></h6>
+                            <small class="text-muted crypto-market-cap">Market Cap: ${formatCurrency(crypto.market_cap, state.currency)}</small>
+                            <small class="text-muted crypto-volume d-none d-md-inline">Volume: ${formatCurrency(crypto.total_volume, state.currency)}</small>
+                        </div>
+                        <div class="text-end ms-2 crypto-price">
+                            <div class="fw-bold">${formatCurrency(crypto.current_price, state.currency)}</div>
+                            <div class="${crypto.price_change_percentage_24h >= 0 ? 'positive-change' : 'negative-change'}">
+                                ${crypto.price_change_percentage_24h >= 0 ? '↑' : '↓'} ${Math.abs(crypto.price_change_percentage_24h).toFixed(2)}%
+                            </div>
+                        </div>
+                        <div class="crypto-actions ms-2">
+                            <button class="btn btn-sm watchlist-btn ${state.watchlist.includes(crypto.id) ? 'active' : ''}" 
+                                data-id="${crypto.id}" onclick="toggleWatchlist(event, '${crypto.id}')">
+                                <i class="bi ${state.watchlist.includes(crypto.id) ? 'bi-star-fill' : 'bi-star'}"></i>
+                            </button>
+                            <button class="btn btn-sm ms-1 btn-outline-primary" onclick="showChartModal('${crypto.id}')">
+                                <i class="bi bi-graph-up"></i> <span class="d-none d-sm-inline">Chart</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Show chart in modal
+        async function showChartModal(cryptoId) {
+            const crypto = state.cryptos.find(c => c.id === cryptoId);
+            if (!crypto) return;
+            
+            state.currentChartCrypto = crypto;
+            
+            // Update modal title and info
+            document.getElementById('chartModalTitle').textContent = `${crypto.name} Price Chart`;
+            selectedCryptoInfo.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <img src="${crypto.image}" alt="${crypto.name}" width="32" height="32" class="me-2">
+                    <div>
+                        <strong>${crypto.name}</strong> (${crypto.symbol.toUpperCase()})
+                        <div class="fw-bold">${formatCurrency(crypto.current_price, state.currency)}</div>
+                    </div>
+                </div>
+            `;
+            
+            // Show modal
+            chartModal.show();
+            
+            // Fetch and display chart data
+            await fetchChartData(cryptoId);
+        }
+
+        // Fetch chart data for a specific cryptocurrency
+        async function fetchChartData(cryptoId) {
+            try {
+                const days = chartTimeframeSelect.value;
+                
+                if (state.usingLiveData) {
+                    // Try to fetch real chart data from API
+                    const apiUrl = `https://api.coingecko.com/api/v3/coins/${cryptoId}/market_chart?vs_currency=${state.currency}&days=${days}`;
+                    
+                    const response = await fetch(apiUrl);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        updateChart(data.prices);
+                        return;
+                    }
+                }
+                
+                // If API fails or we're using demo data, use demo chart data
+                const demoData = generateDemoChartData(days);
+                updateChart(demoData.map(item => [item.time, item.price]));
+                
+                if (state.usingLiveData) {
+                    showNotification('Using demo chart data', 'info');
+                }
+            } catch (error) {
+                console.error('Error fetching chart data:', error);
+                // Use demo chart data
+                const demoData = generateDemoChartData(chartTimeframeSelect.value);
+                updateChart(demoData.map(item => [item.time, item.price]));
+                
+                if (state.usingLiveData) {
+                    showNotification('Using demo chart data', 'info');
+                }
+            }
+        }
+
+        // Update the chart with new data
+        function updateChart(prices) {
+            const labels = prices.map(price => {
+                const date = new Date(price[0]);
+                
+                if (chartTimeframeSelect.value <= 7) {
+                    // For short timeframes, show time
+                    return date.toLocaleTimeString();
+                } else {
+                    // For longer timeframes, show date
+                    return date.toLocaleDateString();
+                }
+            });
+            
+            const data = prices.map(price => price[1]);
+            
+            priceChart.data.labels = labels;
+            priceChart.data.datasets[0].data = data;
+            priceChart.data.datasets[0].label = 'Price';
+            priceChart.update();
+        }
+
+        // Toggle cryptocurrency in watchlist
+        function toggleWatchlist(event, cryptoId) {
+            event.stopPropagation();
+            
+            const crypto = state.cryptos.find(c => c.id === cryptoId);
+            if (!crypto) return;
+            
+            const index = state.watchlist.indexOf(cryptoId);
+            let message = '';
+            
+            if (index === -1) {
+                // Add to watchlist
+                state.watchlist.push(cryptoId);
+                message = `${crypto.name} added to watchlist`;
+                showNotification(message, 'success');
+            } else {
+                // Remove from watchlist
+                state.watchlist.splice(index, 1);
+                message = `${crypto.name} removed from watchlist`;
+                showNotification(message, 'info');
+            }
+            
+            // Save to localStorage
+            localStorage.setItem('watchlist', JSON.stringify(state.watchlist));
+            
+            // Update the button appearance
+            const button = event.target.closest('.watchlist-btn');
+            if (button) {
+                if (index === -1) {
+                    button.classList.add('active');
+                    button.innerHTML = '<i class="bi bi-star-fill"></i>';
+                } else {
+                    button.classList.remove('active');
+                    button.innerHTML = '<i class="bi bi-star"></i>';
+                }
+            }
+            
+            // Update watchlist display
+            updateWatchlistDisplay();
+        }
+
+        // Update watchlist display
+        function updateWatchlistDisplay() {
+            // Update count badge
+            watchlistCount.textContent = state.watchlist.length;
+            
+            // Clear current items
+            watchlistItems.innerHTML = '';
+            
+            if (state.watchlist.length === 0) {
+                watchlistEmpty.style.display = 'block';
+                return;
+            }
+            
+            watchlistEmpty.style.display = 'none';
+            
+            // Add watchlist items
+            state.watchlist.forEach(cryptoId => {
+                const crypto = state.cryptos.find(c => c.id === cryptoId);
+                if (crypto) {
+                    const item = document.createElement('div');
+                    item.className = 'dropdown-item watchlist-item';
+                    item.innerHTML = `
+                        <div class="d-flex align-items-center py-2">
+                            <img src="${crypto.image}" alt="${crypto.name}" width="24" height="24" class="me-2">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold">${crypto.symbol.toUpperCase()}</div>
+                                <small class="text-muted">${crypto.name}</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold">${formatCurrency(crypto.current_price, state.currency)}</div>
+                                <small class="${crypto.price_change_percentage_24h >= 0 ? 'positive-change' : 'negative-change'}">
+                                    ${crypto.price_change_percentage_24h >= 0 ? '↑' : '↓'} ${Math.abs(crypto.price_change_percentage_24h).toFixed(2)}%
+                                </small>
+                            </div>
+                        </div>
+                    `;
+                    item.addEventListener('click', () => showChartModal(crypto.id));
+                    watchlistItems.appendChild(item);
+                }
+            });
+        }
+
+        // Show notification
+        function showNotification(message, type = 'info') {
+            toastMessage.textContent = message;
+            
+            // Set icon based on type
+            const toastHeader = document.querySelector('.toast-header');
+            const icon = toastHeader.querySelector('i');
+            
+            switch(type) {
+                case 'success':
+                    icon.className = 'bi bi-check-circle-fill text-success me-2';
+                    break;
+                case 'error':
+                    icon.className = 'bi bi-exclamation-circle-fill text-danger me-2';
+                    break;
+                case 'warning':
+                    icon.className = 'bi bi-exclamation-triangle-fill text-warning me-2';
+                    break;
+                default:
+                    icon.className = 'bi bi-info-circle-fill text-primary me-2';
+            }
+            
+            notificationToast.show();
+        }
+
+        // Update last updated timestamp
+        function updateLastUpdated() {
+            const now = new Date();
+            lastUpdated.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+        }
+
+        // Initialize the application
+        initApp();
+
+        // Set interval to update data periodically (every 2 minutes)
+        setInterval(() => {
+            fetchCryptoData();
+            updateWatchlistDisplay();
+        }, 120000);
+        
+        // Make functions available globally for HTML onclick attributes
+        window.toggleWatchlist = toggleWatchlist;
+        window.showChartModal = showChartModal;
+        window.retryApiConnection = retryApiConnection;
+    </script>
+</body>
+</html>
